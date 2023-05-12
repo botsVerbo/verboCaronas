@@ -1,4 +1,4 @@
-const url = 'https://verbum.serveo.net'; //put your URL, example: http://localhost:3000
+const url = 'http://localhost:3000'; //put your URL, example: http://localhost:3000
 loadUsers()
 
 //filter users
@@ -44,7 +44,6 @@ function addUserInTable(id, name, phone, cep, lastMessage, role, neighborhood) {
     <td><button class="btn btn-danger" data-bs-toggle="modal" data-bs-target="#confimDelete" onclick="deleteUser(${id}); event.stopPropagation();"">Deletar</button></td>
     </tr>
     `
-    table = table
     document.getElementById('users').innerHTML = table
 }
 
@@ -65,9 +64,15 @@ async function loadUsers() {
 }
 
 //delete user
-function deleteUser(id) {
-    const confirm = document.getElementById('confirmDelete');
+function deleteUser(id) { //ALTERAR ESSA FUNÇÃO BUGADA
+    const confirm = document.getElementById('confirmDeleteBtn');
     confirm.addEventListener('click', () => {
         fetch(`${url}/user/${id}`, { method: 'DELETE' }).then(() => window.location.reload())
+    })
+
+    const modalElement = document.getElementById('confimDelete');
+
+    modalElement.addEventListener('hidden.bs.modal', () => {
+        window.location.reload()
     })
 }

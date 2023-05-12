@@ -7,7 +7,7 @@ const database = process.env.DATABASE
 const password = process.env.PASSWORD
 const databaseUser = process.env.USER
 
-const connect = new Sequelize(database, databaseUser, password, {
+export const connect = new Sequelize(database, databaseUser, password, {
   host: "localhost",
   dialect: "mysql",
   dialectModule: mysql2,
@@ -38,12 +38,13 @@ export const User = connect.define("User", {
   },
   neighborhood: {
     type: Sequelize.STRING,
-  },
+  }
 });
 
-await User.sync({ force: false });
-
 export const Addresses = connect.define("Addresses", {
+  name: {
+    type: Sequelize.STRING
+  },
   startPoint: {
     type: Sequelize.STRING
   },
@@ -58,13 +59,24 @@ export const Addresses = connect.define("Addresses", {
   }
 });
 
-await Addresses.sync({ force: false })
-
-export const MaxTime = connect.define("MaxTime", {
-  userId: {
-    type: DataTypes.INTEGER
-  },
+export const Driver = connect.define("drivers", {
   increaseTime: {
     type: DataTypes.FLOAT
   }
 });
+
+const UserAddresses = connect.define('UserAddress');
+
+User.hasOne(Driver, { foreignKey: 'userId' });
+Driver.belongsTo(User, { foreignKey: 'userId' });
+
+User.belongsToMany(Addresses, { through: UserAddresses})
+Addresses.belongsToMany(User, { through: UserAddresses })
+
+//sync tables
+
+connect.sync()
+
+await User.sync({ force: false });
+await Driver.sync({ force: false })
+await Addresses.sync({ force: false })

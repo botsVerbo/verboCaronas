@@ -1,6 +1,6 @@
 import { RESPONSES } from './RESPONSES.js';
 import { wppSendMessageFrom } from './index.js';
-import { Addresses, MaxTime } from '../db.js';
+import { Addresses, Driver, User } from '../db.js';
 import * as dotenv from 'dotenv';
 dotenv.config();
 const key = process.env.API_KEY || '';
@@ -21,9 +21,9 @@ export async function handleDriver(driverPhone, origin, id, passengers) {
     let countPassengers = 0;
     for (const passenger of passengers) {
         const passengerData = passenger.dataValues;
-        const waypointCep = passengerData.cep;
+        const waypointCep = passengerData? passengerData.cep : 0;
 
-        const timeAndDistance = await getDurationAndDistance(origin, waypointCep);
+        const timeAndDistance = await getDurationAndDistance(origin, waypointCep, id, passenger.name);
         if (timeAndDistance.duration <= await maxTime(id)) {
             countPassengers++;
             sendMessageToDriver(timeAndDistance, passengerData, driverPhone);
@@ -46,7 +46,7 @@ export async function handlePassenger(passengerPhone, passengerData, drivers) {
 
         const waypointCep = passengerData.cep;
 
-        const timeAndDistance = await getDurationAndDistance(origin, waypointCep);
+        const timeAndDistance = await getDurationAndDistance(origin, waypointCep, driver.id, passengerData.name);
 
         if (timeAndDistance.duration <= await maxTime(driverData.id)) {
             countPassengers++;
@@ -85,25 +85,29 @@ async function sendMessageToDriver(timeAndDistance, passengerData, driverPhone) 
 }
 
 async function calculateDurationAndDistance(queryString) {
-    const response = await fetch(`https://maps.googleapis.com/maps/api/directions/json?${queryString}`);
+    try{
+        const response = await fetch(`https://maps.googleapis.com/maps/api/directions/json?${queryString}`);
+        const data = await response.json();
 
-    const data = await response.json();
-    const driverToPassenger = data.routes[0].legs[0];
-    const passengerToDestination = data.routes[0].legs[1];
-    const driverToDestination = data.routes[0].legs[3];
+        const driverToPassenger = data.routes[0].legs[0];
+        const passengerToDestination = data.routes[0].legs[1];
+        const driverToDestination = data.routes[0].legs[3];
+    
+        const duration1 = driverToPassenger.duration.value / 60;
+        const duration2 = passengerToDestination.duration.value / 60;
+        const duration3 = driverToDestination.duration.value / 60;
+        const duration = (duration1 + duration2) - duration3;
 
-    const duration1 = driverToPassenger.duration.value / 60;
-    const duration2 = passengerToDestination.duration.value / 60;
-    const duration3 = driverToDestination.duration.value / 60;
-    const duration = (duration1 + duration2) - duration3;
-
-    const distance1 = driverToPassenger.distance.value / 1000;
-    const distance2 = passengerToDestination.distance.value / 1000;
-    const distance3 = driverToDestination.distance.value / 1000;
-    const distance = (distance1 + distance2) - distance3;
-    console.log(`(${distance1} + ${distance2}) - ${distance3} = ${distance}`)
-    console.log(`(${duration1} + ${duration2}) - ${duration3} = ${duration}`)
-    return { duration, distance };
+        const distance1 = driverToPassenger.distance.value / 1000;
+        const distance2 = passengerToDestination.distance.value / 1000;
+        const distance3 = driverToDestination.distance.value / 1000;
+        const distance = (distance1 + distance2) - distance3;
+        console.log(`(${distance1} + ${distance2}) - ${distance3} = ${distance}`)
+        console.log(`(${duration1} + ${duration2}) - ${duration3} = ${duration}`)
+        return { duration, distance };
+    } catch(error) {
+        return {duration: 1000, distance: 1000}
+    }
 }
 
 const delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
@@ -112,10 +116,8 @@ function randomIntFromInterval(min, max) {
     return Math.floor(Math.random() * (max - min + 1) + min);
 }
 
-async function getDurationAndDistance(origin, waypointCep) {
-
+async function getDurationAndDistance(origin, waypointCep, userId, passengerName) {
     const waypoints = [waypointCep, destination, origin];
-
     const params = {
         origin: origin,
         destination: destination,
@@ -123,7 +125,6 @@ async function getDurationAndDistance(origin, waypointCep) {
         key: key,
     };
     const queryString = new URLSearchParams(params).toString();
-
 
     try {
         const addresses = await Addresses.findAll({
@@ -138,19 +139,26 @@ async function getDurationAndDistance(origin, waypointCep) {
 
     } catch {
         const durationAndDistance = await calculateDurationAndDistance(queryString);
-        await Addresses.create({
+        console.log('endereço criado')
+        const driver = await User.findByPk(userId)
+
+        const address = await Addresses.create({
+            name: passengerName,
             startPoint: `${origin}`,
             waypoint: `${waypointCep}`,
             duration: `${durationAndDistance.duration}`,
             distance: `${durationAndDistance.distance}`
         });
+        
+        await driver.addAddresses(address)
+
         return durationAndDistance;
     }
 }
 
 async function maxTime(id) {
     try {
-        const maxTimeById = await MaxTime.findOne({where: {userId: id}})
+        const maxTimeById = await Driver.findOne({where: {userId: id}})
         return maxTimeById.dataValues.increaseTime
     } catch (error) {
         return 0

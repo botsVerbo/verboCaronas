@@ -2,7 +2,7 @@ import express from "express";
 import bodyParser from "body-parser";
 import session from 'express-session';
 import { loginAuth } from "./middleware.js";
-import { getUsers, deleteUser, getUserById } from "./handleData.js";
+import { getUsers, deleteUser, getUserById, updateUser } from "./handleData.js";
 
 //express
 const app = express();
@@ -67,6 +67,12 @@ app.get('/user/:id', loginAuth, (req, res) => {
 
 app.get('/getuser/:id', loginAuth, async (req, res) => {
     res.json(await getUserById(req.params.id))
+})
+
+app.put('/updateUser/:id', loginAuth, async (req, res) => {
+    console.log(req.body)
+    await updateUser(req.body, res)
+    res.status(200).send('Ok')
 })
 
 app.delete('/user/:id', loginAuth, (req, res) => {

@@ -1,5 +1,5 @@
 import { wppSendMessage, wppSendMessageFrom } from './index.js';
-import { MaxTime, User } from '../db.js';
+import { Driver, User } from '../db.js';
 import { RESPONSES } from './RESPONSES.js';
 import { verifyCep, handleDriver, handlePassenger } from './maps.js';
 
@@ -142,14 +142,16 @@ function choseTheTimeToDrive(wppMessage, currentUser) {
 }
 
 async function maxTime(id, minutes) {
-    const maxTime = await MaxTime.findOne({
+    const maxTime = await Driver.findOne({
         where: { userId: id }
     })
     if (!maxTime) {
-        MaxTime.create({
+        Driver.create({
             userId: id,
             increaseTime: minutes
         });
+    } else {
+        await maxTime.update({ increaseTime: minutes })
     }
 }
 
@@ -162,7 +164,7 @@ async function handleRide(wppMessage, currentUser) {
                 Role: 'passenger',
             },
         });
-        handleDriver(wppMessage.from, currentUser.cep, currentUser.id,  passengers);
+        handleDriver(wppMessage.from, currentUser.cep, currentUser.id, passengers, currentUser);
     } else if (role == 'passenger') {
         wppSendMessage(wppMessage, RESPONSES['awaitingDrivers'], false);
         const drivers = await User.findAll({
